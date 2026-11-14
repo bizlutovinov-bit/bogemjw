@@ -398,6 +398,8 @@ footer{background:var(--paper)!important;color:var(--ink-soft)!important;border-
   .shops{grid-template-columns:minmax(0,1fr)}
 }
 
+[hidden]{display:none!important}  /* 14.11: .item{display:flex} перебивал hidden — фильтр по видам не работал */
+.item .ph::after,.item .ph::before{pointer-events:none}  /* рамка поверх фото перехватывала нажатие — фото не увеличивались */
 .item.off{display:none!important}
 .item.sold .add{display:none}
 .item.sold .ph::before{content:"Продано";position:absolute;z-index:2;top:12px;left:12px;padding:6px 10px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.2em;text-transform:uppercase}
@@ -664,14 +666,18 @@ document.querySelectorAll('.chips button').forEach(b=>b.addEventListener('click'
 }));
 
 (function(){
-  const pics=[...document.querySelectorAll('main img, .cover img')].filter(i=>i.src.startsWith('data:image/jpeg'));
-  const seen=new Set(); const list=pics.filter(i=>{const k=i.src.slice(-60);if(seen.has(k))return false;seen.add(k);return true;});
+  const isPic=i=>i.src.startsWith('data:image/jpeg')||!!i.closest('.item');
+  let pics=[], list=[];
+  function collect(){ pics=[...document.querySelectorAll('main img, .cover img')].filter(i=>isPic(i)&&!i.closest('.item.off'));
+    const seen=new Set(); list=pics.filter(i=>{const k=i.src.slice(-60);if(seen.has(k))return false;seen.add(k);return true;}); }
+  collect();
   const lb=document.getElementById('lb'),im=document.getElementById('lb-img'),cap=document.getElementById('lb-cap'),cnt=document.getElementById('lb-count');
   let cur=0,last=null;
   function show(n){cur=(n+list.length)%list.length;const p=list[cur];im.src=p.src;im.alt=p.alt||'';cap.textContent=p.alt||'';cnt.textContent=(cur+1)+' / '+list.length;}
-  function open(p){const k=p.src.slice(-60);const n=list.findIndex(x=>x.src.slice(-60)===k);last=document.activeElement;show(n<0?0:n);lb.hidden=false;document.body.style.overflow='hidden';document.getElementById('lb-close').focus();}
+  function open(p){collect();const k=p.src.slice(-60);const n=list.findIndex(x=>x.src.slice(-60)===k);last=document.activeElement;show(n<0?0:n);lb.hidden=false;document.body.style.overflow='hidden';document.getElementById('lb-close').focus();}
   function close(){lb.hidden=true;document.body.style.overflow='';if(last)last.focus&&last.focus();}
-  pics.forEach(p=>{p.classList.add('zoomable');p.tabIndex=0;p.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();open(p);});p.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();open(p);}});});
+  function bind(){ pics.forEach(p=>{ if(p.dataset.zoom) return; p.dataset.zoom='1'; p.classList.add('zoomable');p.tabIndex=0;p.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();open(p);});p.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();open(p);}});}); }
+  bind(); document.addEventListener('bogem:catalog',()=>{collect();bind();});
   document.getElementById('lb-close').onclick=close;
   document.getElementById('lb-prev').onclick=()=>show(cur-1);
   document.getElementById('lb-next').onclick=()=>show(cur+1);
@@ -705,7 +711,7 @@ document.querySelectorAll('.chips button').forEach(b=>b.addEventListener('click'
       const cats=String(c[4]||'').toLowerCase().split(/[,;]\s*/).map(x=>CAT[x.trim()]).filter(Boolean);
       const photo=drive(c[5]), st=String(c[6]||'').toLowerCase().trim(), avito=String(c[7]||'').replace(/[^\d]/g,'');
       let it=grid.querySelector('.item[data-no="'+no+'"]');
-      if(!it){ it=tpl.cloneNode(true); delete it.dataset.bound; it.classList.remove('sold','off'); grid.appendChild(it); }
+      if(!it){ it=tpl.cloneNode(true); delete it.dataset.bound; it.querySelectorAll('[data-zoom]').forEach(x=>{delete x.dataset.zoom;}); it.classList.remove('sold','off'); grid.appendChild(it); }
       it.dataset.no=no; it.dataset.id=avito||('b'+no); it.dataset.title=title; it.dataset.price=price; if(cats.length) it.dataset.cat=cats.join(' ');
       it.querySelector('h3').textContent=title; it.querySelector('p').textContent=String(c[2]||'').trim(); it.querySelector('.no').textContent='№ '+String(no).padStart(2,'0');
       const pr=it.querySelector('.price'); pr.className='price'+(price?'':' ask'); pr.textContent=price?price.toLocaleString('ru-RU').replace(/\s/g,' ')+' ₽':'цена по запросу';
