@@ -398,6 +398,10 @@ footer{background:var(--paper)!important;color:var(--ink-soft)!important;border-
   .shops{grid-template-columns:minmax(0,1fr)}
 }
 
+.item.off{display:none!important}
+.item.sold .add{display:none}
+.item.sold .ph::before{content:"Продано";position:absolute;z-index:2;top:12px;left:12px;padding:6px 10px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.2em;text-transform:uppercase}
+.item.sold .ph img{filter:grayscale(.6) opacity(.75)}
 .foot-link{color:inherit;text-decoration:underline;text-underline-offset:3px}
 .cookie{position:fixed;left:calc(16px + env(safe-area-inset-left,0px));right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:70;max-width:560px;display:flex;gap:14px;align-items:center;padding:14px 16px;background:var(--paper);color:var(--ink);border:1px solid var(--rule);box-shadow:0 12px 34px rgba(0,0,0,.22);font-size:13px;line-height:1.5}
 .cookie[hidden]{display:none}
@@ -656,7 +660,7 @@ footer{background:var(--paper)!important;color:var(--ink-soft)!important;border-
 document.querySelectorAll('.chips button').forEach(b=>b.addEventListener('click',()=>{
   const f=b.dataset.f;
   document.querySelectorAll('.chips button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
-  document.querySelectorAll('.item').forEach(it=>{it.hidden=!(f==='all'||it.dataset.cat.split(' ').includes(f));});
+  document.querySelectorAll('.item').forEach(it=>{it.hidden=!(f==='all'||it.dataset.cat.split(' ').includes(f));});  // скрытые таблицей — класс .off
 }));
 
 (function(){
@@ -686,13 +690,51 @@ document.querySelectorAll('.chips button').forEach(b=>b.addEventListener('click'
   btns.forEach(b=>b.addEventListener('click',()=>{ apply(b.dataset.t); try{ localStorage.setItem('bogem-theme',b.dataset.t); }catch(e){} }));
 })();
 
+// Каталог из Google-таблицы «Каталог Bogem» (Андрей 14.11: Оля правит сама, без нас). Нет связи — остаётся каталог, вшитый в страницу.
+(function(){
+  const SHEET='16E8gUN-hT-Lk_szOz3xzkwDmDL1g1dmVXTLccoJQP8c';
+  const CAT={'колье':'kolye','чокер':'kolye','сотуар':'kolye','серьги':'sergi','браслет':'braslet','браслеты':'braslet','комплект':'komplekt','брошь':'brosh','броши':'brosh'};
+  const grid=document.querySelector('.cat'); if(!grid) return; const tpl=grid.querySelector('.item');
+  const drive=u=>{u=String(u||'').trim(); const m=u.match(/(?:\/d\/|[?&]id=)([\w-]{20,})/); return m?'https://drive.google.com/thumbnail?id='+m[1]+'&sz=w1000':(/^https:\/\//.test(u)?u:'');};
+  const val=x=>x?(x.f!=null&&typeof x.v!=='number'?x.f:(x.v==null?'':x.v)):'';
+  window.bogemCatalog=function(res){ try{
+    const rows=(res&&res.table&&res.table.rows)||[]; if(!rows.length) return;
+    const seen=new Set();
+    rows.forEach(r=>{ const c=(r.c||[]).map(val); const no=parseInt(c[0],10); const title=String(c[1]||'').trim(); if(!no||!title) return; seen.add(no);
+      const price=parseInt(String(c[3]).replace(/[^\d]/g,''),10)||0;
+      const cats=String(c[4]||'').toLowerCase().split(/[,;]\s*/).map(x=>CAT[x.trim()]).filter(Boolean);
+      const photo=drive(c[5]), st=String(c[6]||'').toLowerCase().trim(), avito=String(c[7]||'').replace(/[^\d]/g,'');
+      let it=grid.querySelector('.item[data-no="'+no+'"]');
+      if(!it){ it=tpl.cloneNode(true); delete it.dataset.bound; it.classList.remove('sold','off'); grid.appendChild(it); }
+      it.dataset.no=no; it.dataset.id=avito||('b'+no); it.dataset.title=title; it.dataset.price=price; if(cats.length) it.dataset.cat=cats.join(' ');
+      it.querySelector('h3').textContent=title; it.querySelector('p').textContent=String(c[2]||'').trim(); it.querySelector('.no').textContent='№ '+String(no).padStart(2,'0');
+      const pr=it.querySelector('.price'); pr.className='price'+(price?'':' ask'); pr.textContent=price?price.toLocaleString('ru-RU').replace(/\s/g,' ')+' ₽':'цена по запросу';
+      const a=it.querySelector('.row a'); if(avito){a.hidden=false;a.href='https://www.avito.ru/'+avito;}else a.hidden=true;
+      const img=it.querySelector('img'); if(photo){img.src=photo;} img.alt=title;
+      it.querySelector('.add').id='add-'+it.dataset.id;
+      it.classList.toggle('off', st.indexOf('скры')===0); it.classList.toggle('sold', st.indexOf('прод')===0);
+    });
+    grid.querySelectorAll('.item').forEach(it=>{ if(!seen.has(+it.dataset.no)) it.classList.add('off'); });
+    document.dispatchEvent(new Event('bogem:catalog'));
+  }catch(e){ console.warn('каталог', e); } };
+  const s=document.createElement('script'); s.async=true;
+  s.src='https://docs.google.com/spreadsheets/d/'+SHEET+'/gviz/tq?sheet='+encodeURIComponent('Каталог')+'&headers=1&tqx=responseHandler:bogemCatalog';
+  document.head.appendChild(s);
+})();
+
 (function(){
   const CFG={whatsapp:'', telegramUser:'', bot:'bogem_orders_bot', instagram:'bogem_twins_jewelry'}; // номер WhatsApp: '79990000000'; ник Telegram: 'olya_bogem'
   const KEY='bogem-cart'; let cart=[];
   try{ cart=JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){ cart=[]; }
-  const items=[...document.querySelectorAll('.item[data-id]')];
-  const byId=Object.fromEntries(items.map(it=>[it.dataset.id,{id:it.dataset.id,title:it.dataset.title,price:+it.dataset.price,img:it.querySelector('img').src}]));
-  cart=cart.filter(id=>byId[id]);
+  let items=[], byId={};
+  // каталог может обновиться из Google-таблицы (bogem:catalog) — тогда пересобираем список и вешаем кнопки на новые карточки
+  function index(){
+    items=[...document.querySelectorAll('.item[data-id]')].filter(it=>!it.classList.contains('off'));
+    byId=Object.fromEntries(items.map(it=>[it.dataset.id,{id:it.dataset.id,no:it.dataset.no,title:it.dataset.title,price:+it.dataset.price||0,img:it.querySelector('img').src,sold:it.classList.contains('sold')}]));
+    cart=cart.filter(id=>byId[id]&&!byId[id].sold);
+    items.forEach(it=>{ if(it.dataset.bound) return; it.dataset.bound='1';
+      it.querySelector('.add').addEventListener('click',()=>{const id=it.dataset.id; cart=cart.includes(id)?cart.filter(i=>i!==id):[...cart,id]; save(); render(); if(cart.includes(id)){ $('cart-fab').animate([{transform:'scale(1)'},{transform:'scale(1.12)'},{transform:'scale(1)'}],{duration:350}); }}); });
+  }
   const $=id=>document.getElementById(id);
   const fmt=n=>n.toLocaleString('ru-RU')+' ₽';
   function save(){ try{ localStorage.setItem(KEY,JSON.stringify(cart)); }catch(e){} }
@@ -709,17 +751,16 @@ document.querySelectorAll('.chips button').forEach(b=>b.addEventListener('click'
     $('cart-empty').hidden=cart.length>0; $('cart-total-row').hidden=!cart.length; $('cart-form').hidden=!cart.length; $('send').hidden=!cart.length;
     const txt=encodeURIComponent(orderText());
     if(CFG.whatsapp){$('send-wa').hidden=false;$('send-wa').href='https://wa.me/'+CFG.whatsapp+'?text='+txt;}
-    if(CFG.bot){$('send-tg').hidden=false;$('send-tg').href='https://t.me/'+CFG.bot+'?start=o_'+cart.map(id=>document.querySelector('.item[data-id="'+id+'"]').dataset.no).join('_');}
+    if(CFG.bot){$('send-tg').hidden=false;$('send-tg').href='https://t.me/'+CFG.bot+'?start=o_'+cart.map(id=>byId[id].no).join('_');}
   }
   function orderText(){
-    const lines=cart.map((id,i)=>{const x=byId[id];return (i+1)+'. '+x.title+' — '+(x.price?fmt(x.price):'цена по запросу')+' (avito.ru/'+id+')';});
+    const lines=cart.map((id,i)=>{const x=byId[id];return (i+1)+'. '+x.title+' — '+(x.price?fmt(x.price):'цена по запросу')+(/^\d+$/.test(id)?' (avito.ru/'+id+')':' (№ '+x.no+')');});
     const sum=cart.reduce((a,id)=>a+byId[id].price,0);
     const n=$('c-name').value.trim(), p=$('c-phone').value.trim(), c=$('c-note').value.trim();
     return 'Здравствуйте! Хочу заказать в Bogem jw:\n'+lines.join('\n')+'\nИтого: '+fmt(sum)+(cart.some(id=>!byId[id].price)?' + изделия с ценой по запросу':'')+(n?'\nИмя: '+n:'')+(p?'\nТелефон: '+p:'')+(c?'\nКомментарий: '+c:'');
   }
   async function copy(){ const t=orderText(); try{ await navigator.clipboard.writeText(t); return true; }catch(e){
       const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta); ta.select(); let ok=false; try{ok=document.execCommand('copy');}catch(_){} ta.remove(); return ok; } }
-  items.forEach(it=>it.querySelector('.add').addEventListener('click',()=>{const id=it.dataset.id; cart=cart.includes(id)?cart.filter(i=>i!==id):[...cart,id]; save(); render(); if(cart.includes(id)){ $('cart-fab').animate([{transform:'scale(1)'},{transform:'scale(1.12)'},{transform:'scale(1)'}],{duration:350}); }}));
   let last=null;
   $('cart-fab').onclick=()=>{last=document.activeElement;$('cart').hidden=false;document.body.style.overflow='hidden';$('cart-x').focus();};
   const close=()=>{$('cart').hidden=true;document.body.style.overflow='';last&&last.focus&&last.focus();};
@@ -732,7 +773,8 @@ document.querySelectorAll('.chips button').forEach(b=>b.addEventListener('click'
   $('send-tg').addEventListener('click',()=>{ $('cart-msg').textContent='Откроется Telegram — нажмите «Старт», заказ уйдёт мастеру.'; done('Заказ отправлен в Telegram ✓ Корзина очищена. Мастер ответит вам в чате с ботом.'); });
   $('send-wa').addEventListener('click',()=>done('Заказ отправлен в WhatsApp ✓ Корзина очищена.'));
   $('clear-cart').onclick=()=>{ cart=[]; save(); render(); $('cart-msg').textContent='Корзина очищена.'; };
-  render();
+  index(); render();
+  document.addEventListener('bogem:catalog',()=>{ index(); render(); });
 })();
 </script>
 <script>
