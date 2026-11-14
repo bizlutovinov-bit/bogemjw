@@ -1,4 +1,4 @@
 User-agent: *
-Disallow: /yandex_8671d7cb0bab629c.html
+Allow: /
 
 Sitemap: https://bogemjw.ru/sitemap.xml
