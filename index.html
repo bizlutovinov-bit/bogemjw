@@ -1208,6 +1208,13 @@ img[src*="1Ake6u00ahEMHct1gFihE1PQYkzf2gHiU"],img[src*="198RIlZuaqnZPknPLynyGOsx
 .delivery-info h3{font-family:var(--f-display);font-size:26px;font-weight:400;margin:0 0 12px}
 .delivery-info p{font-size:16px;line-height:1.6;margin:0 0 12px;color:var(--ink-soft)}
 .cart select{min-width:0;max-width:100%;color-scheme:normal}
+/* Compact desktop catalog introduction; mobile spacing stays unchanged. */
+@media(min-width:901px){
+ #catalog{padding-top:24px}
+ #catalog .shop-head{margin-bottom:12px;gap:16px}
+ #catalog .archive-link{justify-content:flex-end;gap:12px;margin:0 0 14px;padding:0;border:0;font-size:14px}
+ #catalog .archive-link a{min-height:36px}
+}
 img[src*="1KeLCDyJN0tPyRSom_VfuZXAGLkFZeLUF"],img[src*="1gti_XmZzhDGVQGAnxg9Q-CQwQB2r_Du2"]{filter:brightness(1.035)}
 </style>
 
@@ -1769,6 +1776,10 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
 })();
 
 (function(){
+  window.bogemAskPrice=it=>{
+    if(!it||it.classList.contains('off')||window.bogemIsArchive(it))return;
+    window.bogemMessage({title:'Узнать стоимость',text:'Здравствуйте! Подскажите, пожалуйста, стоимость и наличие украшения «'+it.dataset.title+'» (№ '+it.dataset.no+').'+'\n'+location.origin+location.pathname+'#item-'+it.dataset.no});
+  };
   const CFG={whatsapp:'', telegramUser:'', bot:'bogem_orders_bot', instagram:'bogem_twins_jewelry'};
   const KEY='bogem-cart'; let cart=[];
   try{const stored=JSON.parse(localStorage.getItem(KEY)||'[]');cart=Array.isArray(stored)?[...new Set(stored.filter(id=>typeof id==='string'))]:[];}catch(e){}
@@ -1784,6 +1795,7 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
     items.forEach(it=>{if(it.dataset.bound)return;it.dataset.bound='1';
       it.querySelector('.add').addEventListener('click',()=>{
         if(it.classList.contains('off')||window.bogemIsArchive(it))return;
+        if(!(+it.dataset.price>0)){window.bogemAskPrice(it);return;}
         const id=it.dataset.id;if(cart.includes(id)){$('cart-fab').click();return;}
         cart=[...cart,id];save();render();window.bogemGoal&&bogemGoal('add_to_cart');
       });
@@ -1805,7 +1817,7 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
     $('cart-count').textContent=cart.length;
     const n=cart.length, mod=n%100, lastDigit=n%10;
     $('cart-caption').textContent=n?n+' '+(mod>=11&&mod<=14?'украшений':lastDigit===1?'украшение':lastDigit>=2&&lastDigit<=4?'украшения':'украшений'):'';
-    items.forEach(it=>{const b=it.querySelector('.add'), inC=cart.includes(it.dataset.id);b.classList.toggle('in',inC);b.textContent=inC?'В корзине ✓':'В корзину';});
+    items.forEach(it=>{const b=it.querySelector('.add'), inC=cart.includes(it.dataset.id),ask=!(+it.dataset.price>0);b.classList.toggle('in',inC&&!ask);b.textContent=ask?'Узнать стоимость':inC?'В корзине ✓':'В корзину';});
     const list=$('cart-list'), sig=cart.map(id=>id+':'+byId[id].price+':'+byId[id].title+':'+byId[id].img).join('|');
     if(list.dataset.sig!==sig){list.dataset.sig=sig;list.innerHTML='';
     cart.forEach((id,i)=>{
@@ -2049,7 +2061,7 @@ document.querySelectorAll('a[data-buy]').forEach(a=>a.addEventListener('click',e
   nextPhoto.addEventListener('click',()=>showPhoto(activePhoto+1));
   window.addEventListener('resize',()=>{if(!pd.hidden)showPhoto(activePhoto);});
   function syncAdd(){ if(!cur) return; const b=cur.querySelector('.add'), pa=$('pd-add');
-    pa.hidden=window.bogemIsArchive(cur)||!b; $('pd-contact').hidden=!pa.hidden; const inC=!!(b&&b.classList.contains('in')); pa.classList.toggle('in',inC); pa.textContent=inC?'Открыть корзину ✓':'В корзину'; }
+    pa.hidden=window.bogemIsArchive(cur)||!b; $('pd-contact').hidden=!pa.hidden; const ask=!(+cur.dataset.price>0),inC=!ask&&!!(b&&b.classList.contains('in')); pa.classList.toggle('in',inC); pa.textContent=ask?'Узнать стоимость':inC?'Открыть корзину ✓':'В корзину'; }
   function fill(){ const it=cur; if(!it) return;
     const ps=photos(it), title=it.dataset.title||'', price=+it.dataset.price||0, sold=window.bogemIsArchive(it), rep=it.classList.contains('repeat');
     gal.innerHTML=''; dots.innerHTML=''; thumbs.innerHTML='';
@@ -2105,6 +2117,7 @@ document.querySelectorAll('a[data-buy]').forEach(a=>a.addEventListener('click',e
     else if(!e.shiftKey&&document.activeElement===end){e.preventDefault();first.focus();}
   });
   $('pd-add').addEventListener('click',()=>{ const b=cur&&cur.querySelector('.add'); if(!b||window.bogemIsArchive(cur)||cur.classList.contains('off')) return;
+    if(!(+cur.dataset.price>0)){window.bogemAskPrice(cur);return;}
     if(b.classList.contains('in')){ closeItem(); setTimeout(()=>{ const f=$('cart-fab'); f&&f.click(); },60); return; }
     b.click(); syncAdd(); $('pd-msg').textContent='Добавлено в корзину ✓'; });
   $('pd-fav').addEventListener('click',()=>{ if(cur) toggleFav(cur.dataset.no); });
