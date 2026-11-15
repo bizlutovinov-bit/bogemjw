@@ -1717,6 +1717,8 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
   const drive=u=>{u=String(u||'').trim(); const m=u.match(/(?:\/d\/|[?&]id=)([\w-]{20,})/); return m?(CLEAN[m[1]]||(LOCALCAT.has(m[1])?'img/cat/'+m[1]+'-s.webp':'https://drive.google.com/thumbnail?id='+m[1]+'&sz=w600')):(/^https:\/\//.test(u)?u:'');};
   const val=x=>x?(x.f!=null&&typeof x.v!=='number'?x.f:(x.v==null?'':x.v)):'';
   window.bogemCatalog=function(res){ try{
+    const fromCopy=/catalog\.js/.test((document.currentScript&&document.currentScript.src)||''); // копия с сайта не перетирает свежую таблицу
+    if(fromCopy&&window.__bogemLive) return; if(!fromCopy) window.__bogemLive=true;
     const rows=(res&&res.table&&res.table.rows)||[]; if(!rows.length) return;
     const seen=new Set();
     rows.forEach(r=>{ const c=(r.c||[]).map(val); const no=parseInt(c[0],10); const title=String(c[1]||'').trim(); if(!no||!title) return; seen.add(no);
@@ -1743,6 +1745,8 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
     grid.querySelectorAll('.item').forEach(it=>{ if(!seen.has(+it.dataset.no)) it.classList.add('off'); });
     document.dispatchEvent(new Event('bogem:catalog'));
   }catch(e){ console.warn('каталог', e); } };
+  // 15.11: сначала копия каталога с самого сайта (быстро на телефоне), затем свежая таблица Google поверх
+  const s0=document.createElement('script'); s0.async=true; s0.src='catalog.js?v='+Math.floor(Date.now()/6e5); document.head.appendChild(s0);
   const s=document.createElement('script'); s.async=true;
   s.src='https://docs.google.com/spreadsheets/d/'+SHEET+'/gviz/tq?sheet='+encodeURIComponent('Каталог')+'&headers=1&tqx=responseHandler:bogemCatalog';
   document.head.appendChild(s);
