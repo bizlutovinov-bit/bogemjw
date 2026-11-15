@@ -884,6 +884,7 @@ body{font-weight:400}
 
 /* A clear, mobile-friendly path from a saved selection to a conversation. */
 .cart{top:0;bottom:0;height:auto}
+.cart-open .marquee div{animation-play-state:paused}
 .cart-panel{width:min(460px,100%);padding:0;gap:0;overflow:hidden}
 .cart-head{flex:none;margin:0;padding:26px 24px 16px}
 .cart-head h2{font-size:34px}
@@ -1773,11 +1774,13 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
   try{const stored=JSON.parse(localStorage.getItem(KEY)||'[]');cart=Array.isArray(stored)?[...new Set(stored.filter(id=>typeof id==='string'))]:[];}catch(e){}
   const $=id=>document.getElementById(id), fmt=n=>n.toLocaleString('ru-RU')+' ₽';
   let items=[], byId={}, last=null;
-  function save(){try{localStorage.setItem(KEY,JSON.stringify(cart));}catch(e){}}
+  let pending=[]; // id из корзины, которых ещё нет на странице (каталог догружается) — не терять до прихода живой таблицы
+  function save(){try{localStorage.setItem(KEY,JSON.stringify([...cart,...pending.filter(id=>!cart.includes(id))]));}catch(e){}}
   function index(){
     items=[...document.querySelectorAll('.item[data-id]')].filter(it=>!it.classList.contains('off'));
     byId=Object.fromEntries(items.map(it=>[it.dataset.id,{id:it.dataset.id,no:it.dataset.no,title:it.dataset.title,price:+it.dataset.price||0,img:it.querySelector('img').src,sold:window.bogemIsArchive(it),repeat:it.classList.contains('repeat')}]));
-    cart=cart.filter(id=>byId[id]&&!byId[id].sold);save();
+    const all=[...new Set([...cart,...pending])];cart=all.filter(id=>byId[id]&&!byId[id].sold);
+    pending=window.__bogemLive?[]:all.filter(id=>!byId[id]);save();
     items.forEach(it=>{if(it.dataset.bound)return;it.dataset.bound='1';
       it.querySelector('.add').addEventListener('click',()=>{
         if(it.classList.contains('off')||window.bogemIsArchive(it))return;
@@ -1803,7 +1806,8 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
     const n=cart.length, mod=n%100, lastDigit=n%10;
     $('cart-caption').textContent=n?n+' '+(mod>=11&&mod<=14?'украшений':lastDigit===1?'украшение':lastDigit>=2&&lastDigit<=4?'украшения':'украшений'):'';
     items.forEach(it=>{const b=it.querySelector('.add'), inC=cart.includes(it.dataset.id);b.classList.toggle('in',inC);b.textContent=inC?'В корзине ✓':'В корзину';});
-    const list=$('cart-list');list.innerHTML='';
+    const list=$('cart-list'), sig=cart.map(id=>id+':'+byId[id].price+':'+byId[id].title+':'+byId[id].img).join('|');
+    if(list.dataset.sig!==sig){list.dataset.sig=sig;list.innerHTML='';
     cart.forEach((id,i)=>{
       const x=byId[id],li=document.createElement('li');
       li.innerHTML='<img loading="lazy" decoding="async" alt=""><div class="cart-item-info"><span class="cart-item-no"></span><div class="t"></div><div class="p"></div><button class="cart-remove" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>Удалить</button></div>';
@@ -1816,7 +1820,7 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
         const next=$('cart-list').querySelectorAll('.cart-remove');(next[Math.min(i,next.length-1)]||$('cart-browse')).focus({preventScroll:true});
       };
       list.appendChild(li);
-    });
+    });}
     const sum=cart.reduce((a,id)=>a+byId[id].price,0), ask=cart.filter(id=>!byId[id].price).length;
     $('cart-total').textContent=sum?fmt(sum):'Стоимость уточняется';$('cart-ask').textContent=ask&&sum?'Ещё '+ask+' — по запросу':'';
     $('cart-empty').hidden=n>0;
@@ -1830,8 +1834,16 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
       try{ok=document.execCommand('copy');}catch(_){}ta.remove();return ok;
     }
   }
-  function close(){$('cart').hidden=true;document.body.style.overflow='';if(last&&last.isConnected)last.focus({preventScroll:true});}
-  $('cart-fab').onclick=()=>{window.bogemGoal&&bogemGoal('cart_open');last=document.activeElement;render();$('cart').hidden=false;document.body.style.overflow='hidden';$('cart-body').scrollTop=0;$('cart-x').focus({preventScroll:true});};
+  // 15.11 (Андрей: на iPhone курсор прыгает, после обновления корзина закрывается): страница под корзиной фиксируется
+  // (iOS не держит overflow:hidden у body), бегущая строка на паузе, открытая корзина и поля переживают обновление.
+  let lockY=0;const FORM='bogem-cart-form', OPEN='bogem-cart-open', FIELDS=['c-name','c-phone','c-city','c-delivery','c-address','c-note'];
+  function lock(on){const b=document.body.style;document.documentElement.classList.toggle('cart-open',on);
+    if(on){lockY=window.scrollY;b.position='fixed';b.top=-lockY+'px';b.left='0';b.right='0';b.width='100%';b.overflow='hidden';}
+    else{b.position=b.top=b.left=b.right=b.width=b.overflow='';window.scrollTo(0,lockY);}}
+  function close(){$('cart').hidden=true;lock(false);try{sessionStorage.removeItem(OPEN);}catch(e){}if(last&&last.isConnected)last.focus({preventScroll:true});}
+  function openCart(restore){last=document.activeElement;render();$('cart').hidden=false;lock(true);try{sessionStorage.setItem(OPEN,'1');}catch(e){}
+    if(restore){if(FIELDS.some(id=>$(id).value))$('cart-details').open=true;}else{$('cart-body').scrollTop=0;$('cart-x').focus({preventScroll:true});}}
+  $('cart-fab').onclick=()=>{window.bogemGoal&&bogemGoal('cart_open');openCart(false);};
   $('cart-x').onclick=close;
   $('cart').addEventListener('click',e=>{if(e.target.id==='cart')close();});
   $('cart-browse').onclick=()=>{close();$('f-all').click();$('catalog').scrollIntoView({behavior:'smooth',block:'start'});$('collection-title').focus({preventScroll:true});};
@@ -1844,8 +1856,10 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
     else if(!e.shiftKey&&document.activeElement===end){e.preventDefault();first.focus();}
   });
   $('cart-form').addEventListener('submit',e=>e.preventDefault());
-  ['c-name','c-phone','c-city','c-address','c-note'].forEach(id=>$(id).addEventListener('input',updateLinks));
-  $('c-delivery').addEventListener('change',updateLinks);
+  try{const d=JSON.parse(localStorage.getItem(FORM)||'{}');FIELDS.forEach(id=>{if(typeof d[id]==='string')$(id).value=d[id];});}catch(e){}
+  const keep=()=>{try{localStorage.setItem(FORM,JSON.stringify(Object.fromEntries(FIELDS.map(id=>[id,$(id).value]))));}catch(e){}};
+  ['c-name','c-phone','c-city','c-address','c-note'].forEach(id=>$(id).addEventListener('input',()=>{updateLinks();keep();}));
+  $('c-delivery').addEventListener('change',()=>{updateLinks();keep();});
   $('copy-order').onclick=async()=>{
     window.bogemGoal&&bogemGoal('order_copy');const ok=await copy();
     if(ok){$('cart-msg').textContent='Заказ скопирован. Вставьте его в сообщение мастеру.';$('cart-msg').scrollIntoView({block:'nearest'});}
@@ -1856,10 +1870,13 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
     window.bogemGoal&&bogemGoal('order_tg');copy().then(ok=>{$('cart-msg').textContent=ok?'Откроется Telegram — нажмите «Старт», список украшений уйдёт мастеру. Текст заказа с контактами скопирован — вставьте его в чат бота.':'Откроется Telegram — нажмите «Старт», список украшений уйдёт мастеру.';});
   });
   $('send-wa').addEventListener('click',()=>{$('cart-msg').textContent='Продолжите оформление в WhatsApp. Выбранные украшения сохранены.';});
-  $('clear-cart').onclick=()=>{cart=[];save();render();$('cart-msg').textContent='Корзина очищена.';$('cart-browse').focus();};
+  $('clear-cart').onclick=()=>{cart=[];save();render();FIELDS.forEach(id=>$(id).value='');try{localStorage.removeItem(FORM);}catch(e){}$('cart-msg').textContent='Корзина очищена.';$('cart-browse').focus();};
   // Match the visible viewport when the mobile keyboard opens; keep the edited field in view.
   // 15.11: подгонка корзины под visualViewport убрана — на iPhone при вводе (клавиатура) давала петлю scroll→resize→scrollIntoView и корзина моргала (Андрей). Safari сам прокручивает поле в видимую зону.
   index();render();document.addEventListener('bogem:catalog',()=>{index();render();});
+  let reopen=false;try{reopen=!!sessionStorage.getItem(OPEN);}catch(e){}
+  const tryReopen=()=>{if(reopen&&cart.length&&$('cart').hidden){reopen=false;openCart(true);}};
+  tryReopen();document.addEventListener('bogem:catalog',tryReopen);
 })();
 </script>
 <script>
