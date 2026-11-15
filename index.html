@@ -883,7 +883,7 @@ body{font-weight:400}
 
 
 /* A clear, mobile-friendly path from a saved selection to a conversation. */
-.cart{top:var(--cart-top,0px);bottom:auto;height:var(--cart-height,100dvh)}
+.cart{top:0;bottom:0;height:auto}
 .cart-panel{width:min(460px,100%);padding:0;gap:0;overflow:hidden}
 .cart-head{flex:none;margin:0;padding:26px 24px 16px}
 .cart-head h2{font-size:34px}
@@ -1858,15 +1858,7 @@ window.bogemIsArchive=it=>!!it&&it.matches('.archived,.sold,.repeat');
   $('send-wa').addEventListener('click',()=>{$('cart-msg').textContent='Продолжите оформление в WhatsApp. Выбранные украшения сохранены.';});
   $('clear-cart').onclick=()=>{cart=[];save();render();$('cart-msg').textContent='Корзина очищена.';$('cart-browse').focus();};
   // Match the visible viewport when the mobile keyboard opens; keep the edited field in view.
-  if(window.visualViewport){
-    const viewport=window.visualViewport;
-    const resize=()=>{
-      document.documentElement.style.setProperty('--cart-height',viewport.height+'px');
-      document.documentElement.style.setProperty('--cart-top',viewport.offsetTop+'px');
-      if(!$('cart').hidden&&$('cart-form').contains(document.activeElement))document.activeElement.scrollIntoView({block:'nearest'});
-    };
-    viewport.addEventListener('resize',resize);viewport.addEventListener('scroll',resize);resize();
-  }
+  // 15.11: подгонка корзины под visualViewport убрана — на iPhone при вводе (клавиатура) давала петлю scroll→resize→scrollIntoView и корзина моргала (Андрей). Safari сам прокручивает поле в видимую зону.
   index();render();document.addEventListener('bogem:catalog',()=>{index();render();});
 })();
 </script>
